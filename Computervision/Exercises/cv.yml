@@ -1,0 +1,21 @@
+ name: cv
+ channels:
+   - conda-forge
+   - defaults
+ dependencies:
+   - python=3.7
+   - numpy
+   - matplotlib
+   - scipy
+   - scikit-image
+   - scikit-learn
+   - jupyter
+   - ipython
+   - ipywidgets
+   - pillow
+   - pandas
+   - mahotas
+   - opencv
+   - imageio
+   - cvloop
+   - imageio-ffmpeg

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Assignment 3</title>
+</head>
+<body>
+<canvas id="canvas" style="border:1px solid #000000;">
+    Your browser does not support the HTML5 canvas tag.
+</canvas>
+<p><label for="drawLinesIn">Zeichne Linien </label><input type="checkbox" id="drawLinesIn"></p>
+<p><label for="drawTrianglesIn">Zeichne Dreiecke </label><input type="checkbox" id="drawTrianglesIn"></p>
+<p><label for="antialiasingIn">Antialiasing </label><input type="checkbox" id="antialiasingIn"></p>
+<script>
+
+    let drawLines = true;
+    let drawTriangles = true;
+    let antialiasing = false;
+
+    let drawLinesIn = document.getElementById("drawLinesIn");
+    drawLinesIn.checked = drawLines;
+    drawLinesIn.onchange = function() {
+        drawLines = this.checked;
+        update();
+    };
+    let drawTrianglesIn = document.getElementById("drawTrianglesIn");
+    drawTrianglesIn.checked = drawTriangles;
+    drawTrianglesIn.onchange = function() {
+        drawTriangles = this.checked;
+        update();
+    };
+    let antialiasingIn = document.getElementById("antialiasingIn");
+    antialiasingIn.checked = antialiasing;
+    antialiasingIn.onchange = function() {
+        antialiasing = this.checked;
+        update();
+    };
+
+    class Vector {
+        constructor(x = 0, y = 0, z = 0) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = 0;
+        }
+
+        dot(v) {
+            return this.x * v.x + this.y * v.y + this.z * v.z;
+        }
+
+        cross(v) {
+            return new Vector(
+                this.y * v.z - this.z * v.y,
+                this.z * v.x - this.x * v.z,
+                this.x * v.y - this.y * v.x
+            );
+        }
+
+        norm() {
+            return Math.sqrt(this.dot(this));
+        }
+
+        normalize() {
+            let n = this.norm();
+            this.x /= n;
+            this.y /= n;
+            this.z /= n;
+        }
+
+        sub(v) {
+            return new Vector(
+                this.x - v.x,
+                this.y - v.y,
+                this.z - v.z
+            );
+        }
+    }
+
+    class Point {
+        constructor(x = 0, y = 0, z = 0, w = 1) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
+
+        dehomogen() {
+            this.x /= this.w;
+            this.y /= this.w;
+            this.z /= this.w;
+            this.w = 1;
+        }
+    }
+
+    class Matrix {
+        constructor(a00 = 1, a01 = 0, a02 = 0, a03 = 0,
+                    a10 = 0, a11 = 1, a12 = 0, a13 = 0,
+                    a20 = 0, a21 = 0, a22 = 1, a23 = 0,
+                    a30 = 0, a31 = 0, a32 = 0, a33 = 1) {
+            this.a00 = a00;
+            this.a01 = a01;
+            this.a02 = a02;
+            this.a03 = a03;
+            this.a10 = a10;
+            this.a11 = a11;
+            this.a12 = a12;
+            this.a13 = a13;
+            this.a20 = a20;
+            this.a21 = a21;
+            this.a22 = a22;
+            this.a23 = a23;
+            this.a30 = a30;
+            this.a31 = a31;
+            this.a32 = a32;
+            this.a33 = a33;
+        }
+
+        mulMat(m) {
+            return new Matrix(
+                this.a00 * m.a00 + this.a01 * m.a10 + this.a02 * m.a20 + this.a03 * m.a30,
+                this.a00 * m.a01 + this.a01 * m.a11 + this.a02 * m.a21 + this.a03 * m.a31,
+                this.a00 * m.a02 + this.a01 * m.a12 + this.a02 * m.a22 + this.a03 * m.a32,
+                this.a00 * m.a03 + this.a01 * m.a13 + this.a02 * m.a23 + this.a03 * m.a33,
+                this.a10 * m.a00 + this.a11 * m.a10 + this.a12 * m.a20 + this.a13 * m.a30,
+                this.a10 * m.a01 + this.a11 * m.a11 + this.a12 * m.a21 + this.a13 * m.a31,
+                this.a10 * m.a02 + this.a11 * m.a12 + this.a12 * m.a22 + this.a13 * m.a32,
+                this.a10 * m.a03 + this.a11 * m.a13 + this.a12 * m.a23 + this.a13 * m.a33,
+                this.a20 * m.a00 + this.a21 * m.a10 + this.a22 * m.a20 + this.a23 * m.a30,
+                this.a20 * m.a01 + this.a21 * m.a11 + this.a22 * m.a21 + this.a23 * m.a31,
+                this.a20 * m.a02 + this.a21 * m.a12 + this.a22 * m.a22 + this.a23 * m.a32,
+                this.a20 * m.a03 + this.a21 * m.a13 + this.a22 * m.a23 + this.a23 * m.a33,
+                this.a30 * m.a00 + this.a31 * m.a10 + this.a32 * m.a20 + this.a33 * m.a30,
+                this.a30 * m.a01 + this.a31 * m.a11 + this.a32 * m.a21 + this.a33 * m.a31,
+                this.a30 * m.a02 + this.a31 * m.a12 + this.a32 * m.a22 + this.a33 * m.a32,
+                this.a30 * m.a03 + this.a31 * m.a13 + this.a32 * m.a23 + this.a33 * m.a33
+            );
+        }
+
+        mulVec(v) {
+            return new Point(
+                this.a00 * v.x + this.a01 * v.y + this.a02 * v.z + this.a03 * v.w,
+                this.a10 * v.x + this.a11 * v.y + this.a12 * v.z + this.a13 * v.w,
+                this.a20 * v.x + this.a21 * v.y + this.a22 * v.z + this.a23 * v.w,
+                this.a30 * v.x + this.a31 * v.y + this.a32 * v.z + this.a33 * v.w
+            );
+        }
+    }
+
+    class Line {
+        constructor(a, b) {
+            this.a = a;
+            this.b = b;
+        }
+    }
+
+    class Triangle {
+        constructor(a, b, c, color) {
+            this.a = a;
+            this.b = b;
+            this.c = c;
+            this.color = color;
+        }
+    }
+
+    const size = 500;
+    const canvas = document.getElementById("canvas");
+    canvas.setAttribute("height", size.toString());
+    canvas.setAttribute("width", size.toString());
+    const ctx = canvas.getContext("2d");
+    let image;
+    let mouseRotMat = new Matrix();
+    const lookAtMat = new Matrix(
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, -250,
+        0, 0, 0, 1
+    )
+    const far = 500;
+    const projectionMat = new Matrix(
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, (-far - 1) / (far - 1), -2 * far / (far - 1),
+        0, 0, -1, 0
+    );
+    const viewPortMat = new Matrix(
+        size / 2, 0, 0, 0,
+        0, size / 2, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    )
+
+    function setPixel(x, y, color = [0, 0, 0]) {
+        let row = Math.round(-y + size / 2);
+        let col = Math.round(x + size / 2);
+        if (row >= 0 && row < size && col >= 0 && col < size) {
+            for (let i = 0; i < 3; i++) {
+                image.data[4 * size * row + 4 * col + i] = color[i];
+            }
+        }
+    }
+
+    function drawLine(line) {
+        // Test a
+        setPixel(line.a.x, line.a.y);
+        setPixel(line.b.x, line.b.y);
+
+        let is_steep = Math.abs((line.b.y-line.a.y)/(line.b.x-line.a.x))>1
+        let a = line.a
+        let b = line.b
+        if(is_steep){
+            if(a.y > b.y) {
+                a = line.b
+                b = line.a
+            }
+        }else{
+            if(a.x > b.x) {
+                a = line.b
+                b = line.a
+            }
+        }
+        m = (b.y-a.y)/(b.x-a.x)
+        y = a.y
+        x = a.x
+        let drawing = true
+        while(drawing){
+            setPixel(x, y)
+            if(is_steep){
+                x += 1/m
+                y++
+                if(Math.round(y) >= Math.round(b.y)){drawing = false}
+            }else{
+                y += m
+                x++
+                if(Math.round(x) >= Math.round(b.x)){drawing = false}
+            }
+        }
+    }
+
+    function drawTriangle(triangle) {
+        // Test b
+        setPixel(triangle.a.x, triangle.a.y, triangle.color);
+        setPixel(triangle.b.x, triangle.b.y, triangle.color);
+        setPixel(triangle.c.x, triangle.c.y, triangle.color);
+
+        // TODO: Aufgabe b2
+        let ax = triangle.a.x
+        let ay = triangle.a.y
+        let bx = triangle.b.x
+        let by = triangle.b.y
+        let cx = triangle.c.x
+        let cy = triangle.c.y
+        let minx = Math.min(ax,bx,cx)
+        let maxx = Math.max(ax,bx,cx)
+        let miny = Math.min(ay,by,cy)
+        let maxy = Math.max(ay,by,cy)
+
+        //check for empty triangle
+        if(!( minx == maxx || miny == maxy)){
+            // Run through bounding box
+            for(let px = minx; px < maxx; px++){
+                for(let py = miny; py < maxy; py++){
+                    // inside bounding box
+                    //paint entire box
+                    //setPixel(x,y,triangle.color)
+                    if(is_inside(ax,ay,bx,by,cx,cy,px,py)){
+                        setPixel(px,py,triangle.color)
+                    }
+                }
+            }
+        }
+    }
+    function det(px,py,ax,ay,bx,by){
+        //return 1/2 *((ax-px) * (by-py)) - ((ay-py) * (bx-px));
+        return 1/2 *(((ax-px) * (by-py)) - ((bx-px) * (ay-py)));
+    }
+    function is_inside(ax,ay,bx,by,cx,cy,px,py){
+        //bigA
+        let cab = det(cx,cy,ax,ay,bx,by)
+        let inside = false;
+
+        let pab = det(px,py,ax,ay,bx,by)
+        let pca = det(px,py,cx,cy,ax,ay)
+        let pbc = det(px,py,bx,by,cx,cy)
+
+        let alpha = pab / cab;
+        let beta = pca / cab;
+        let gamma = pbc / cab;
+        //console.log(alpha,beta,gamma)
+        inside = alpha > 0 && beta > 0 && gamma > 0;
+        //console.log(inside)
+        return inside;
+    }
+    function give_points(){
+        let points = [];
+
+        let center = 0;
+        let right = 80;
+        let top = right;
+        let left = back = bottom = -right;
+        let front = right;
+
+        p1 = new Point(left,top,front);
+        p2 = new Point(right,top,front);
+        p3 = new Point(left,bottom,front);
+        p4 = new Point(right,bottom,front);
+        p5 = new Point(left,top,back);
+        p6 = new Point(right,top,back);
+        p7 = new Point(left,bottom,back);
+        p8 = new Point(right,bottom,back);
+        p9 = new Point(center,center,center);
+        points.push(p1,p2,p3,p4,p5,p6,p7,p8,p9
+        )
+        console.log(points)
+        return points;
+
+    }
+    function createLines() {
+        let lines = [];
+
+        // TODO: Aufgabe a1
+        points = give_points()
+
+        for (let p = 0; p < points.length; p++) {
+            for (let p2 = 0; p2 < points.length; p2++) {
+                l = new Line(points[p], points[p2])
+                lines.push(l)
+            }
+        }
+
+       console.log(lines)
+        return lines;
+    }
+
+    function createTriangles() {
+        let triangles = [];
+        // TODO: Aufgabe b1
+
+        points = give_points()
+
+        for (let p = 0; p < points.length; p++) {
+            for (let p2 = 0; p2 < points.length; p2++) {
+                for (let p3 = 0; p3 < points.length; p3++) {
+                    col = [Math.random()*255, Math.random()*255, Math.random()*255]
+                    t = new Triangle(points[p], points[p2], points[p3], col)
+                    triangles.push(t)
+                }
+            }
+        }
+
+
+                return triangles;
+    }
+
+    let triangles = createTriangles();
+    let lines = createLines();
+
+    function update() {
+        ctx.clearRect(0, 0, size, size);
+        image = ctx.createImageData(size, size);
+        for (let i = 0; i < image.data.length; i++) {
+            image.data[i] = 255;
+        }
+        let transform = viewPortMat.mulMat(projectionMat).mulMat(lookAtMat).mulMat(mouseRotMat);
+
+        if (drawTriangles) {
+            let transformed = [];
+            for (let i = 0; i < triangles.length; i++) {
+                let points = [triangles[i].a, triangles[i].b, triangles[i].c];
+                for (let j = 0; j < 3; j++) {
+                    points[j] = transform.mulVec(points[j]);
+                    points[j].dehomogen();
+                }
+                transformed.push(new Triangle(points[0], points[1], points[2], triangles[i].color));
+            }
+            transformed.sort(function(a, b) {
+                return (b.a.z + b.b.z + b.c.z) - (a.a.z + a.b.z + a.c.z);
+            });
+            for (let i = 0; i < transformed.length; i++) {
+                drawTriangle(transformed[i]);
+            }
+        }
+        if (drawLines) {
+            for (let i = 0; i < lines.length; i++) {
+                let points = [lines[i].a, lines[i].b];
+                for (let j = 0; j < 2; j++) {
+                    points[j] = transform.mulVec(points[j]);
+                    points[j].dehomogen();
+                }
+                drawLine(new Line(points[0], points[1]));
+            }
+        }
+        ctx.putImageData(image, 0, 0);
+    }
+
+    update();
+
+    let down = false;
+    let x0;
+    let y0;
+
+    document.getElementById("canvas").addEventListener("mousedown", function(event) {
+        down = true;
+        x0 = event.clientX - size / 2;
+        y0 = size / 2 - event.clientY;
+    });
+
+    document.getElementById("canvas").addEventListener("mousemove", function(event) {
+        if (down) {
+            let x1 = event.clientX - size / 2;
+            let y1 = size / 2 - event.clientY;
+            if (x0 !== x1 || y0 !== y1) {
+                let v0 = new Vector(x0, y0, size / 2);
+                v0.normalize();
+                let v1 = new Vector(x1, y1, size / 2);
+                v1.normalize();
+                if (v0.sub(v1).norm() > 0.001) {
+                    let n = v0.cross(v1);
+                    let alpha = Math.asin(n.norm());
+                    n.normalize();
+                    let sin = Math.sin(alpha);
+                    let cos = Math.cos(alpha);
+                    mouseRotMat = new Matrix(
+                        (1 - cos) * n.x * n.x + cos, (1 - cos) * n.x * n.y - sin * n.z, (1 - cos) * n.x * n.z + sin * n.y, 0,
+                        (1 - cos) * n.y * n.x + sin * n.z, (1 - cos) * n.y * n.y + cos, (1 - cos) * n.y * n.z - sin * n.x, 0,
+                        (1 - cos) * n.z * n.x - sin * n.y, (1 - cos) * n.z * n.y + sin * n.x, (1 - cos) * n.z * n.z + cos, 0,
+                        0, 0, 0, 1
+                    ).mulMat(mouseRotMat);
+                }
+                update();
+                x0 = x1;
+                y0 = y1;
+            }
+        }
+    });
+
+    document.getElementById("canvas").addEventListener("mouseup", function() {
+        down = false;
+    });
+
+</script>
+</body>
+</html>
